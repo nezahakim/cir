@@ -11,7 +11,7 @@ require_once __DIR__ . '/../../includes/header.php';
 // Redirect if already logged in
 if (isLoggedIn()) {
     header('Location: ' . BASE_URL . '/pages/citizen/dashboard.php');
-    exit;
+    exit; 
 }
 
 $error   = '';

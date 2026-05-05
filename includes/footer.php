@@ -3,7 +3,7 @@
  * includes/footer.php
  * Common footer included at the bottom of every page.
  * Loads Bootstrap JS and Leaflet.js scripts.
- */
+ */ 
 ?>
     <!-- Bootstrap 5 JS Bundle (includes Popper) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

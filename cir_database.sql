@@ -126,3 +126,4 @@ INSERT INTO issues (user_id, category_id, title, description, latitude, longitud
 (2, 2, 'Severe flooding in Kimironko market', 'Heavy rain has caused flooding around Kimironko market blocking pedestrian access.', -1.9355, 30.1003, 'Kigali, Gasabo', 'Critical', 'In Progress', 4.72),
 (2, 3, 'Street lights out on KK 15 Ave', 'Multiple street lights not working creating safety concerns at night.', -1.9580, 30.1127, 'Kigali, Kicukiro', 'Medium', 'Resolved', 2.60),
 (2, 6, 'Sewage overflow near school', 'Sewage is overflowing near Ecole Primaire causing health hazard for children.', -1.9502, 30.0588, 'Kigali, Nyarugenge', 'Critical', 'Pending', 4.88);
+ 

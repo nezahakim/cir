@@ -10,7 +10,7 @@ $pageTitle = 'Report an Issue';
 require_once __DIR__ . '/../../includes/header.php';
 
 requireLogin('citizen');
-
+ 
 $db     = getDB();
 $userId = $_SESSION['user_id'];
 

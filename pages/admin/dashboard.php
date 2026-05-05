@@ -3,7 +3,7 @@
  * pages/admin/dashboard.php
  * Admin dashboard showing all issue stats and a sorted issues table.
  * Issues sorted by priority score (highest first).
- */
+ */ 
 
 $pageTitle = 'Admin Dashboard';
 require_once __DIR__ . '/../../includes/header.php';

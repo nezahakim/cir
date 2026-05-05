@@ -13,7 +13,7 @@ requireLogin('citizen');
 $db      = getDB();
 $userId  = $_SESSION['user_id'];
 $issueId = (int) ($_GET['id'] ?? 0);
-
+ 
 if (!$issueId) {
     header('Location: ' . BASE_URL . '/pages/citizen/my_issues.php');
     exit;

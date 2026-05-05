@@ -7,7 +7,7 @@
 require_once __DIR__ . '/../../includes/header.php';
 
 // Destroy all session data
-session_unset();
+session_unset(); 
 session_destroy();
 
 // Redirect to login

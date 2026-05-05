@@ -2,7 +2,7 @@
 /**
  * Public landing page for the Community Issue Reporter (CIR) system.
  */
-
+ 
 $pageTitle = 'Welcome';
 require_once __DIR__ . '/includes/header.php';
 
