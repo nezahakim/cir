@@ -56,7 +56,7 @@ function getUnreadNotificationCount(): int {
 }
 
 // ─── Base URL (adjust if project folder name differs) ────────────────────────
-define('BASE_URL', '');
+define('BASE_URL', '/cir');
 
 // ─── Page title — can be overridden before including this file ───────────────
 $pageTitle = $pageTitle ?? 'Community Issue Reporter';

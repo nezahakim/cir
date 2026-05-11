@@ -127,3 +127,30 @@ INSERT INTO issues (user_id, category_id, title, description, latitude, longitud
 (2, 3, 'Street lights out on KK 15 Ave', 'Multiple street lights not working creating safety concerns at night.', -1.9580, 30.1127, 'Kigali, Kicukiro', 'Medium', 'Resolved', 2.60),
 (2, 6, 'Sewage overflow near school', 'Sewage is overflowing near Ecole Primaire causing health hazard for children.', -1.9502, 30.0588, 'Kigali, Nyarugenge', 'Critical', 'Pending', 4.88);
  
+
+
+-- CIR Migration: Profile pictures + Issue flagging
+ALTER TABLE users
+    MODIFY COLUMN profile_image VARCHAR(255) DEFAULT NULL;
+
+ALTER TABLE issues
+    ADD COLUMN IF NOT EXISTS flag_reason VARCHAR(500) DEFAULT NULL
+        COMMENT 'Set by admin when issue needs citizen correction; cleared on re-submit',
+    ADD COLUMN IF NOT EXISTS flagged_at TIMESTAMP NULL DEFAULT NULL,
+    ADD COLUMN IF NOT EXISTS flagged_by INT DEFAULT NULL,
+    ADD CONSTRAINT IF NOT EXISTS fk_issues_flagged_by
+        FOREIGN KEY (flagged_by) REFERENCES users(id);
+
+CREATE TABLE IF NOT EXISTS issue_edit_history (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    issue_id    INT NOT NULL,
+    edited_by   INT NOT NULL,
+    old_title       VARCHAR(200),
+    old_description TEXT,
+    old_severity    ENUM('Low','Medium','High','Critical'),
+    old_image       VARCHAR(255),
+    edit_note   VARCHAR(500) DEFAULT NULL,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (issue_id)  REFERENCES issues(id) ON DELETE CASCADE,
+    FOREIGN KEY (edited_by) REFERENCES users(id)
+) ENGINE=InnoDB COMMENT='Immutable audit log of citizen edits';

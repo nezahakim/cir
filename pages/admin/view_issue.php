@@ -1,7 +1,7 @@
 <?php
 /**
  * pages/admin/view_issue.php
- * Admin view of a single issue with full details, photo, map, and update history.
+ * Admin view of a single issue — full details, photo, map, update history, flag controls.
  */
 
 $pageTitle = 'Issue Details';
@@ -17,7 +17,6 @@ if (!$issueId) {
     exit;
 }
 
-// Fetch issue with citizen info and category
 $stmt = $db->prepare(
     "SELECT i.*, c.category_name, c.severity_weight,
             u.full_name AS citizen_name, u.email AS citizen_email, u.phone AS citizen_phone
@@ -34,7 +33,6 @@ if (!$issue) {
     exit;
 }
 
-// Fetch update history
 $updates = $db->prepare(
     "SELECT iu.*, u.full_name AS admin_name
      FROM issue_updates iu
@@ -45,6 +43,17 @@ $updates = $db->prepare(
 $updates->execute([$issueId]);
 $updateHistory = $updates->fetchAll();
 
+// Fetch edit history (citizen corrections)
+$edits = $db->prepare(
+    "SELECT eh.*, u.full_name AS editor_name
+     FROM issue_edit_history eh
+     JOIN users u ON eh.edited_by = u.id
+     WHERE eh.issue_id = ?
+     ORDER BY eh.created_at DESC"
+);
+$edits->execute([$issueId]);
+$editHistory = $edits->fetchAll();
+
 function statusBadgeClass(string $s): string {
     return match($s) {
         'Pending'     => 'badge-pending',
@@ -53,6 +62,9 @@ function statusBadgeClass(string $s): string {
         default       => 'bg-secondary',
     };
 }
+
+// Error message from redirect (e.g. tried to flag a non-pending issue)
+$redirectErr = $_GET['err'] ?? '';
 ?>
 
 <?php require_once __DIR__ . '/../../includes/navbar.php'; ?>
@@ -60,7 +72,6 @@ function statusBadgeClass(string $s): string {
 <div class="main-wrapper">
 <div class="main-content">
 
-    <!-- Breadcrumb -->
     <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb" style="font-size:0.85rem;">
             <li class="breadcrumb-item"><a href="<?= BASE_URL ?>/pages/admin/dashboard.php" class="text-green">Dashboard</a></li>
@@ -68,6 +79,33 @@ function statusBadgeClass(string $s): string {
             <li class="breadcrumb-item active">#<?= $issueId ?></li>
         </ol>
     </nav>
+
+    <?php if ($redirectErr === 'flag_only_pending'): ?>
+        <div class="cir-alert cir-alert-danger auto-dismiss">
+            <i class="bi bi-exclamation-circle-fill"></i>
+            Only <strong>Pending</strong> issues can be flagged for correction. This issue is already <?= htmlspecialchars($issue['status']) ?>.
+        </div>
+    <?php endif; ?>
+
+    <!-- Flag notice banner — shown when issue is currently flagged -->
+    <?php if ($issue['flag_reason']): ?>
+        <div class="cir-alert cir-alert-danger mb-3" style="align-items:flex-start;gap:14px;">
+            <i class="bi bi-flag-fill fs-5 mt-1" style="flex-shrink:0;"></i>
+            <div style="flex:1;">
+                <strong>Flagged for Citizen Correction</strong><br />
+                <?= htmlspecialchars($issue['flag_reason']) ?>
+                <br />
+                <span style="font-size:0.78rem;opacity:.8;">
+                    Flagged on <?= date('d M Y, H:i', strtotime($issue['flagged_at'])) ?>
+                    — The citizen can edit this issue until they re-submit.
+                </span>
+            </div>
+            <a href="<?= BASE_URL ?>/pages/admin/flag_issue.php?id=<?= $issueId ?>"
+               class="btn btn-sm btn-outline-danger" style="white-space:nowrap;">
+                <i class="bi bi-pencil"></i> Update Flag
+            </a>
+        </div>
+    <?php endif; ?>
 
     <!-- Issue Header -->
     <div class="issue-detail-header">
@@ -82,9 +120,18 @@ function statusBadgeClass(string $s): string {
                 </div>
             </div>
             <div class="d-flex gap-2 flex-wrap">
-                <a href="<?= BASE_URL ?>/pages/admin/update_issue.php?id=<?= $issueId ?>" class="btn-cir-primary" style="padding:10px 20px;">
+                <a href="<?= BASE_URL ?>/pages/admin/update_issue.php?id=<?= $issueId ?>"
+                   class="btn-cir-primary" style="padding:10px 20px;">
                     <i class="bi bi-pencil-square"></i> Update Status
                 </a>
+                <!-- Flag button only for Pending issues not yet acted on -->
+                <?php if ($issue['status'] === 'Pending'): ?>
+                    <a href="<?= BASE_URL ?>/pages/admin/flag_issue.php?id=<?= $issueId ?>"
+                       class="btn-cir-outline" style="padding:9px 18px;border-color:#ef4444;color:#ef4444;">
+                        <i class="bi bi-flag-fill"></i>
+                        <?= $issue['flag_reason'] ? 'Edit Flag' : 'Flag for Correction' ?>
+                    </a>
+                <?php endif; ?>
                 <span class="badge-status <?= statusBadgeClass($issue['status']) ?>" style="font-size:0.9rem;padding:10px 18px;display:flex;align-items:center;">
                     <?= $issue['status'] ?>
                 </span>
@@ -94,6 +141,7 @@ function statusBadgeClass(string $s): string {
 
     <div class="row g-4">
         <div class="col-lg-8">
+
             <!-- Description -->
             <div class="cir-card mb-4">
                 <div class="cir-card-header"><h5><i class="bi bi-file-text me-2 text-green"></i>Description</h5></div>
@@ -102,7 +150,6 @@ function statusBadgeClass(string $s): string {
                 </div>
             </div>
 
-            <!-- Photo -->
             <?php if ($issue['image']): ?>
             <div class="cir-card mb-4">
                 <div class="cir-card-header"><h5><i class="bi bi-image me-2 text-green"></i>Attached Photo</h5></div>
@@ -114,7 +161,6 @@ function statusBadgeClass(string $s): string {
             </div>
             <?php endif; ?>
 
-            <!-- Map -->
             <?php if ($issue['latitude'] && $issue['longitude']): ?>
             <div class="cir-card mb-4">
                 <div class="cir-card-header"><h5><i class="bi bi-map me-2 text-green"></i>Location on Map</h5></div>
@@ -124,7 +170,37 @@ function statusBadgeClass(string $s): string {
             </div>
             <?php endif; ?>
 
-            <!-- Update History -->
+            <!-- Citizen edit history (audit trail) -->
+            <?php if (!empty($editHistory)): ?>
+            <div class="cir-card mb-4">
+                <div class="cir-card-header">
+                    <h5><i class="bi bi-pencil-history me-2 text-green"></i>Citizen Edit History
+                        <span class="badge bg-secondary ms-2" style="font-size:0.72rem;"><?= count($editHistory) ?> edit<?= count($editHistory)!==1?'s':'' ?></span>
+                    </h5>
+                </div>
+                <div class="cir-card-body" style="padding:0;">
+                    <table class="cir-table">
+                        <thead><tr><th>Date</th><th>Previous Title</th><th>Previous Severity</th><th>Admin Reason</th></tr></thead>
+                        <tbody>
+                        <?php foreach ($editHistory as $eh): ?>
+                            <tr>
+                                <td style="white-space:nowrap;color:#64748b;font-size:0.82rem;">
+                                    <?= date('d M Y, H:i', strtotime($eh['created_at'])) ?>
+                                </td>
+                                <td><?= htmlspecialchars($eh['old_title']) ?></td>
+                                <td><span class="badge-severity badge-<?= strtolower($eh['old_severity']) ?>"><?= $eh['old_severity'] ?></span></td>
+                                <td style="font-size:0.82rem;color:#64748b;max-width:200px;">
+                                    <?= htmlspecialchars(substr($eh['edit_note'] ?? '', 0, 120)) ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <?php endif; ?>
+
+            <!-- Status update history -->
             <div class="cir-card">
                 <div class="cir-card-header"><h5><i class="bi bi-clock-history me-2 text-green"></i>Update History</h5></div>
                 <div class="cir-card-body">
@@ -143,9 +219,7 @@ function statusBadgeClass(string $s): string {
                                                 <span class="badge-status <?= statusBadgeClass($upd['new_status']) ?>"><?= $upd['new_status'] ?></span>
                                             </p>
                                             <?php if ($upd['update_message']): ?>
-                                                <p class="mb-0 text-muted" style="font-size:0.85rem;">
-                                                    "<?= htmlspecialchars($upd['update_message']) ?>"
-                                                </p>
+                                                <p class="mb-0 text-muted" style="font-size:0.85rem;">"<?= htmlspecialchars($upd['update_message']) ?>"</p>
                                             <?php endif; ?>
                                             <p class="mb-0" style="font-size:0.78rem;color:#94a3b8;">By <?= htmlspecialchars($upd['admin_name']) ?></p>
                                         </div>
@@ -161,7 +235,7 @@ function statusBadgeClass(string $s): string {
             </div>
         </div>
 
-        <!-- Right sidebar: meta + citizen info -->
+        <!-- Right sidebar -->
         <div class="col-lg-4">
             <div class="cir-card mb-4">
                 <div class="cir-card-header"><h5><i class="bi bi-info-circle me-2 text-green"></i>Issue Info</h5></div>
@@ -169,14 +243,15 @@ function statusBadgeClass(string $s): string {
                     <table style="width:100%;font-size:0.88rem;border-collapse:collapse;">
                         <?php
                         $rows = [
-                            ['Issue ID',        '#' . $issue['id']],
-                            ['Category',        $issue['category_name']],
-                            ['Severity',        $issue['severity']],
-                            ['Priority Score',  number_format($issue['priority_score'], 2)],
-                            ['Status',          $issue['status']],
-                            ['Latitude',        $issue['latitude'] ?: '—'],
-                            ['Longitude',       $issue['longitude'] ?: '—'],
-                            ['Submitted',       date('d M Y', strtotime($issue['created_at']))],
+                            ['Issue ID',       '#' . $issue['id']],
+                            ['Category',       $issue['category_name']],
+                            ['Severity',       $issue['severity']],
+                            ['Priority Score', number_format($issue['priority_score'], 2)],
+                            ['Status',         $issue['status']],
+                            ['Flagged',        $issue['flag_reason'] ? '⚑ Yes' : 'No'],
+                            ['Latitude',       $issue['latitude'] ?: '—'],
+                            ['Longitude',      $issue['longitude'] ?: '—'],
+                            ['Submitted',      date('d M Y', strtotime($issue['created_at']))],
                         ];
                         foreach ($rows as [$label, $value]):
                         ?>
@@ -208,7 +283,8 @@ function statusBadgeClass(string $s): string {
                 </div>
             </div>
 
-            <a href="<?= BASE_URL ?>/pages/admin/manage_issues.php" class="btn-cir-outline w-100 justify-content-center" style="padding:12px;">
+            <a href="<?= BASE_URL ?>/pages/admin/manage_issues.php"
+               class="btn-cir-outline w-100 justify-content-center" style="padding:12px;">
                 <i class="bi bi-arrow-left"></i> Back to Issues
             </a>
         </div>
@@ -224,16 +300,14 @@ document.addEventListener('DOMContentLoaded', function () {
     const lng = <?= (float) $issue['longitude'] ?>;
     const map = L.map('viewMap').setView([lat, lng], 15);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(map);
-    const colorMap = { 'Pending': 'red', 'In Progress': 'orange', 'Resolved': 'green' };
-    const color = colorMap['<?= $issue['status'] ?>'] || 'blue';
-    const icon = L.icon({
+    const color = { 'Pending': 'red', 'In Progress': 'orange', 'Resolved': 'green' }['<?= $issue['status'] ?>'] || 'blue';
+    L.marker([lat, lng], { icon: L.icon({
         iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
         shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
-    });
-    L.marker([lat, lng], { icon }).addTo(map)
-     .bindPopup('<strong><?= htmlspecialchars(addslashes($issue['title'])) ?></strong><br><?= $issue['status'] ?>')
-     .openPopup();
+        iconSize: [25,41], iconAnchor: [12,41], popupAnchor: [1,-34], shadowSize: [41,41]
+    })}).addTo(map)
+      .bindPopup('<strong><?= htmlspecialchars(addslashes($issue['title'])) ?></strong><br><?= $issue['status'] ?>')
+      .openPopup();
 });
 </script>
 <?php endif; ?>
